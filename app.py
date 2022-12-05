@@ -4,11 +4,19 @@ from flask_sqlalchemy import SQLAlchemy
 from marshmallow_sqlalchemy import SQLAlchemySchema,auto_field
 from marshmallow import fields
 from datetime import datetime
+from sqlalchemy.orm import sessionmaker
 import random, secrets
 import enum
-from sqlalchemy import update , and_, func, extract
+from sqlalchemy import update , and_, func, extract,create_engine
+import sqlalchemy as db
 app = Flask(__name__)
+engine = create_engine('sqlite:///sales.db', echo = True)
+from sqlalchemy.ext.declarative import declarative_base
+Base = declarative_base()
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
+engine = db.create_engine("sqlite:///database.db")
+meta_data = db.MetaData(bind=engine)
+db.MetaData.reflect(meta_data)
 #app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 app.app_context().push()
@@ -29,16 +37,16 @@ class Country(enum.Enum):
     Iran = "324"
     Iraq = "412"
     Ireland = "761"
-class Applicant(db.Model):
+class Applicant(Base):
     __tablename__ = "Applicant"
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     applicant_id = db.Column(db.Integer())
     name = db.Column(db.String(200), nullable=False)
     email = db.Column(db.String(200),nullable=False)
-    dob = db.Column(db.Date)
+    dob = db.Column(db.Date())
     country = db.Column(db.Enum(Country))
     status = db.Column(db.String(100), default = "pending" )
-    created_dttm = db.Column(db.DateTime())
+    created_dttm = db.Column(db.Date())
 
     def create(self):
       db.session.add(self)
@@ -52,8 +60,8 @@ class Applicant(db.Model):
         self.status = status 
         self.created_dttm = created_dttm
     def __repr__(self):
-        return '' % self.id
-class results(db.Model):
+        return '%s' % self.id
+class results(Base):
     __tablename__ = "results"
     processapplicant_id = db.Column(db.Integer(),primary_key=True)
     client_key = db.Column(db.String(128)) 
@@ -81,11 +89,14 @@ class ApplicantSchema(SQLAlchemySchema):
     status = fields.String(dump_default = "pending")
     created_dttm = auto_field(dump_only=True)
 class Applicant_out(SQLAlchemySchema):
-    class Meta(SQLAlchemySchema.Meta):
+     def __init__(self, appicant_id, status):
+        self.applicant_id = appicant_id
+        self.status = status
+class Meta(SQLAlchemySchema.Meta):
         model = Applicant
         sqla_session = db.session
-    applicant_id = fields.Number()
-    status = fields.String(dump_default = "pending")
+        applicant_id = fields.Number()
+        status = fields.String(dump_default = "pending")
     
 class process_schema(SQLAlchemySchema):
     class meta(SQLAlchemySchema.Meta):
@@ -173,6 +184,8 @@ def add_applicant():
     data = request.json
     if (data and ('name' in data) and ('email' in data) and ('dob' in data) and ('country' in data) and ('status' in data) and ('created_dttm'in data)):
         #applicant_id = data['applicant_id']
+        Session = sessionmaker(bind = engine)
+        session = Session()
         name = data['name']
         email = data['email']
         dob = datetime.strptime(data['dob'],'%m-%d-%Y').date()
@@ -181,9 +194,12 @@ def add_applicant():
         created_dttm = datetime.strptime(data['created_dttm'],'%m-%d-%Y').date()
         try:
             new_applicant = Applicant(name, email, dob, country, status, created_dttm)
+            sqlQuery = "INSERT INTO Applicant(name, email, dob, country, status, created_dttm) VALUES(%s,%s,%s,%s,%s,%s)"
+            session.execute(new_applicant,sqlQuery)
+            session.commit()
             db.session.add(new_applicant)
             db.session.commit()
-            return jsonify({"message": "Add success!"}), 200
+            return jsonify({"message": "Add success!"}), 201
         except IndentationError:
             db.session.rollback()
             return jsonify({"message": "Can not add applicant!"}), 400
@@ -198,27 +214,34 @@ def add_applicant():
 #     return make_response(jsonify({"applicant": result}),200)
 @app.route('/Applicant/process', methods  = ['POST'])
 def process_applicant():
+    date = datetime.day(Applicant)
+    print(type(date))
+    if date % 2==0:
+        db.session.query(Applicant).filter(Applicant.status).update({Applicant.status: Applicant.status + "processed"})
+    else:
+        db.session.query(Applicant).filter(Applicant.status).update({Applicant.status: Applicant.status + "failed"})
+    # applicant = meta_data.tables['Applicant']
     # date = db.session.query(Applicant).filter(extract('day', Applicant.dob)).all()
     # if date % 2 ==0:
 
     # else:
-    query = db.session.query(Applicant).filter(and_(func.datetime.date(Applicant.dob) % 2 == 0 ))
-    date = db.session.query(Applicant.dob).filter(Applicant.dob).all()
-    if date % 2 == 0: 
-        # db.session.query(Applicant)
-        db.session.query(Applicant).filter(Applicant.dob).first()
-        db.session.query(Applicant).update({Applicant.status: Applicant.status  + "Processed"})
-    else:
-        db.session.query(Applicant).filter(Applicant.dob).first()
-        db.session.query(Applicant).update({Applicant.status: Applicant.status +"Failed"})
+    # query = db.session.query(Applicant).filter(and_(func.datetime.date(Applicant.dob) % 2 == 0 ))
+    # date = db.session.query(Applicant.dob).filter(Applicant.dob).all()
+    # if date % 2 == 0: 
+    #     # db.session.query(Applicant)
+    #     db.session.query(Applicant).filter(Applicant.dob).first()
+    #     db.session.query(Applicant).update({Applicant.status: Applicant.status  + "Processed"})
+    # else:
+    #     db.session.query(Applicant).filter(Applicant.dob).first()
+    #     db.session.query(Applicant).update({Applicant.status: Applicant.status +"Failed"})
     
-    data = request.get_json()
-    print(data)
-    results_schema = process_schema()
-    print (results_schema)
-    result = results_schema.load(data)
-    rs = results_schema.dump(result)
-    return make_response(jsonify({"result": rs}),200)
+    # data = request.get_json()
+    # print(data)
+    # results_schema = process_schema()
+    # print (results_schema)
+    # result = results_schema.load(data)
+    # rs = results_schema.dump(result)
+    # return make_response(jsonify({"result": rs}),200)
     
 if __name__ == "__main__":
     app.run('0.0.0.0',debug=False)
