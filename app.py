@@ -168,18 +168,18 @@ def delete_applicant_all():
                 return jsonify({"message": "Can not delete applicant!"}), 400
 @app.route('/Applicant', methods = ['POST'])
 def add_applicant():
-    # if not request.json:
-    #     abort(400)
-    # applicant = Applicant(
-    #     name = request.json.get('name'),
-    #     email = request.json.get('email'),
-    #     dob = datetime.strptime(request.json.get('dob'), '%m-%d-%Y').date(),
-    #     country = request.json.get('country'),
-    #     status = request.json.get('status'),
-    #     created_dttm = datetime.strptime(request.json.get('created_dttm'), '%m-%d-%Y').date()
-    # )
-    # db.session.add(applicant)
-    # db.session.commit()
+    if not request.json:
+        abort(400)
+    applicant = Applicant(
+        name = request.json.get('name'),
+        email = request.json.get('email'),
+        dob = datetime.strptime(request.json.get('dob'), '%m-%d-%Y').date(),
+        country = request.json.get('country'),
+        status = request.json.get('status'),
+        created_dttm = datetime.strptime(request.json.get('created_dttm'), '%m-%d-%Y').date()
+    )
+    db.session.add(applicant)
+    db.session.commit()
     # return make_response(jsonify({"applicant": applicant}), 201)
     data = request.json
     if (data and ('name' in data) and ('email' in data) and ('dob' in data) and ('country' in data) and ('status' in data) and ('created_dttm'in data)):
